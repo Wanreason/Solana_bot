@@ -1,6 +1,6 @@
 import requests
 
-def get_hot_memecoins(min_volume_usd=100000, min_liquidity_usd=50000):
+def get_hot_memecoins(min_volume_usd=90000, min_liquidity_usd=10000):
     url = "https://quote-api.jup.ag/v6/tokens"
     try:
         response = requests.get(url)
