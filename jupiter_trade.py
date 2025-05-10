@@ -10,15 +10,21 @@ from solana.rpc.types import TxOpts
 
 load_dotenv()
 
-# Load private key from environment variable (as list of numbers)
+# Load private key from environment variable
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")
 
-# Ensure it's loaded
+# Validate private key format
 if not PRIVATE_KEY:
     raise ValueError("Missing PRIVATE_KEY in environment variables.")
 
-# Safely parse the string list to actual Python list of ints
-keypair = Keypair.from_bytes(bytes(ast.literal_eval(PRIVATE_KEY)))
+try:
+    private_key_list = ast.literal_eval(PRIVATE_KEY)
+    if not isinstance(private_key_list, list) or len(private_key_list) != 64:
+        raise ValueError("Invalid PRIVATE_KEY format. It must be a list of 64 integers.")
+    keypair = Keypair.from_bytes(bytearray(private_key_list))
+except Exception as e:
+    raise ValueError(f"Failed to parse PRIVATE_KEY: {e}")
+
 wallet_address = str(keypair.pubkey())
 
 # Solana RPC client
