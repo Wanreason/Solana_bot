@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv
 
 from solders.keypair import Keypair
@@ -9,15 +10,15 @@ from solana.rpc.types import TxOpts
 
 load_dotenv()
 
-# Load private key from environment variable (base58 format)
+# Load private key from environment variable (JSON array format)
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")
 
 # Ensure it's loaded
 if not PRIVATE_KEY:
     raise ValueError("Missing PRIVATE_KEY in environment variables.")
 
-# Initialize keypair from base58
-keypair = Keypair.from_base58_string(PRIVATE_KEY)
+# Initialize keypair from JSON array string
+keypair = Keypair.from_bytes(bytes(json.loads(PRIVATE_KEY)))
 wallet_address = str(keypair.pubkey())
 
 # Solana RPC client
