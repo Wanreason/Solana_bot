@@ -11,7 +11,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 alerted_tokens = set()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Welcome to Solana Auto Trader!\nUse /hot to see top tokens.")
+    await update.message.reply_text("🤖Ordigodz Welcome to Solana Auto Trader!\nUse /hot to see top tokens.")
 
 async def hot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     coins = get_hot_memecoins()
