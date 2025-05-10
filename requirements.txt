@@ -1,9 +1,5 @@
+python-telegram-bot==20.3
 solana==0.29.0
-httpx
-aiohttp
-flask
-pyserum
-python-telegram-bot==20.6
 solders==0.14.3
 requests
 apscheduler
