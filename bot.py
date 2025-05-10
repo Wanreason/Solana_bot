@@ -35,7 +35,7 @@ async def auto_alert(app):
     for coin in coins:
         if coin['address'] in alerted_tokens:
             continue
-        if coin['volume24h'] > 50000 and coin['liquidity'] > 20000:
+        if coin['volume24h'] > 10000 and coin['liquidity'] > 6000:
             symbol = coin['symbol']
             message = (
                 f"🚨 *{symbol}* ({coin['name']}) is trending!\n"
