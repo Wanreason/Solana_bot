@@ -1,7 +1,9 @@
 python-telegram-bot==20.0
+httpx
 aiohttp
 requests
 flask
 apscheduler
 solana
 pyserum
+solders
