@@ -1,86 +1,81 @@
 import os
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-from jupiter_trade import execute_trade, check_stop_loss_take_profit
-from keep_alive import keep_alive
+import logging
+import asyncio
+from telegram import Update, Bot
+from telegram.ext import Updater, CommandHandler, CallbackContext
+
+from jupiter_trade import execute_trade, auto_sell_if_needed, fetch_token_and_price
 from jupiter_utils import get_hot_memecoins
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+# Setup
+logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-# Start command
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome! Use /hot to see trending Solana memecoins.")
+# --- Telegram command handlers ---
 
-# /hot command to get trending memecoins
-async def hot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    coins = get_hot_memecoins()
-    if not coins:
-        await update.message.reply_text("No hot memecoins found right now.")
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("🤖 Solana Trading Bot is live!")
+
+def hot(update: Update, context: CallbackContext):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    tokens = loop.run_until_complete(get_hot_memecoins())
+    
+    message = "🔥 Hot Memecoins:\n"
+    for t in tokens:
+        message += f"{t['symbol']} - {t['address']}\n"
+    
+    update.message.reply_text(message)
+
+def price(update: Update, context: CallbackContext):
+    if len(context.args) != 1:
+        update.message.reply_text("Usage: /price <symbol_or_address>")
         return
 
-    message = "🔥 *Top Trending Solana Memecoins:*\n\n"
-    for coin in coins:
-        message += (
-            f"*{coin['symbol']}* ({coin['name']})\n"
-            f"Price: `${coin['price']:.6f}`\n"
-            f"24h Volume: `${coin['volume24h']:,}`\n"
-            f"Liquidity: `${coin['liquidity']:,}`\n"
-            f"[Swap on Jupiter](https://jup.ag/swap/SOL-{coin['address']})\n\n"
-        )
-
-    await update.message.reply_text(message, parse_mode="Markdown")
-
-# /trade command for auto-trading
-async def auto_trade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    token_address = context.args[0]  # Get token address from command arguments
-    usdc_amount = float(context.args[1])  # Get USDC amount from command arguments
-    price = float(context.args[2])  # Get price from command arguments
-
-    # Execute the trade (real trade)
-    result = await execute_trade(token_address, usdc_amount, "TokenSymbol", price)
-
-    if result['success']:
-        await update.message.reply_text(f"Successfully traded {usdc_amount} USDC for {result['token']}.")
+    token = context.args[0]
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    data = loop.run_until_complete(fetch_token_and_price(token))
+    
+    if not data:
+        update.message.reply_text("❌ Token not found.")
     else:
-        await update.message.reply_text(f"Trade failed: {result.get('error', 'Unknown error')}.")
+        update.message.reply_text(f"{data['symbol']} price: ${data['price']}")
 
-# Scheduler to periodically monitor and alert
-def start_scheduler(app):
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(monitor_and_alert, 'interval', minutes=1, args=[app])
-    scheduler.start()
+def buy(update: Update, context: CallbackContext):
+    if len(context.args) < 2:
+        update.message.reply_text("Usage: /buy <symbol_or_address> <amount_usdc>")
+        return
 
-# Monitor hot coins every minute
-async def monitor_and_alert(app):
-    coins = get_hot_memecoins()
-    for coin in coins:
-        if coin['volume24h'] > 10000 and coin['liquidity'] > 9000:
-            message = (
-                f"🔥 Hot trending token detected: {coin['name']} ({coin['symbol']})\n"
-                f"Price: ${coin['price']:.6f}\n"
-                f"Volume: ${coin['volume24h']:,}\n"
-                f"Liquidity: ${coin['liquidity']:,}\n"
-                f"Swap now: [Jupiter Swap Link](https://jup.ag/swap/SOL-{coin['address']})"
-            )
-            # Send the alert to the Telegram channel
-            chat_id = os.getenv("CHAT_ID")
-            await app.bot.send_message(chat_id, message)
+    token = context.args[0]
+    amount = float(context.args[1])
 
-# Main function
-async def main():
-    keep_alive()
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    token_data = loop.run_until_complete(fetch_token_and_price(token))
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("hot", hot))
-    app.add_handler(CommandHandler("trade", auto_trade))
+    if not token_data:
+        update.message.reply_text("❌ Token not found.")
+        return
 
-    start_scheduler(app)
+    result = loop.run_until_complete(execute_trade(token_data["address"], amount, token_data["symbol"], token_data["price"]))
+    if result["success"]:
+        update.message.reply_text(f"✅ Bought {result['token']} for ${result['amount_usdc']}!\nTx: {result['tx_hash']}")
+    else:
+        update.message.reply_text(f"❌ Error: {result['error']}")
 
-    print("Bot is running...")
-    await app.run_polling()
+def main():
+    updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("hot", hot))
+    dp.add_handler(CommandHandler("price", price))
+    dp.add_handler(CommandHandler("buy", buy))
+
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+    main()
