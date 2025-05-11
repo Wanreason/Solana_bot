@@ -9,7 +9,7 @@ from jupiter_utils import get_hot_memecoins
 
 # Setup
 logging.basicConfig(level=logging.INFO)
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 # --- Telegram command handlers ---
