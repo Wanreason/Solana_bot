@@ -9,7 +9,7 @@ from solana.rpc.api import Client
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.types import TxOpts
 
-from jupiter_sdk import JupiterClient, SwapMode
+from jupiter_sdk.client import JupiterClient, SwapMode
 from jupiter_utils import fetch_token_info
 
 load_dotenv()
