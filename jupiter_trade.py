@@ -1,88 +1,76 @@
 import os
 import ast
 import base58
-import httpx
-import json
-
 from dotenv import load_dotenv
+
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
+from solana.rpc.api import Client
 from solana.rpc.async_api import AsyncClient
-from solana.transaction import Transaction
 from solana.rpc.types import TxOpts
-from solana.rpc.commitment import Confirmed
+
+from jupiter_sdk import JupiterClient, SwapMode
 
 load_dotenv()
 
-# Load base58 private key
-PRIVATE_KEY_B58 = os.getenv("PRIVATE_KEY")
-if not PRIVATE_KEY_B58:
+# Load private key from base58 in environment variable
+PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+
+if not PRIVATE_KEY:
     raise ValueError("Missing PRIVATE_KEY in environment variables.")
 
 try:
-    secret_key_bytes = base58.b58decode(PRIVATE_KEY_B58)
-    if len(secret_key_bytes) != 64:
-        raise ValueError("Expected a 64-byte private key.")
-    keypair = Keypair.from_bytes(secret_key_bytes)
+    secret_bytes = base58.b58decode(PRIVATE_KEY)
+    if len(secret_bytes) != 64:
+        raise ValueError("Expected 64 bytes for full secret key.")
+    keypair = Keypair.from_bytes(secret_bytes)
 except Exception as e:
     raise ValueError(f"Failed to decode PRIVATE_KEY from base58: {e}")
 
 wallet_address = str(keypair.pubkey())
-SOLANA_RPC = "https://api.mainnet-beta.solana.com"
-JUPITER_API = "https://quote-api.jup.ag"
 
-# Initialize Solana client
-client = AsyncClient(SOLANA_RPC)
+# Solana RPC client
+client = Client("https://api.mainnet-beta.solana.com")
+async_client = AsyncClient("https://api.mainnet-beta.solana.com")
 
+jupiter = JupiterClient(async_client)
+
+# 🔁 Execute real trade
 async def execute_trade(token_address: str, usdc_amount: float, symbol: str, price: float):
     try:
-        # Step 1: Get quote
-        async with httpx.AsyncClient() as session:
-            quote_url = f"{JUPITER_API}/v6/quote"
-            params = {
-                "inputMint": "Es9vMFrzaCER9Piy3Z4ZZ1xpsB8cBeLEU9tz3KjPrXkT",  # USDC
-                "outputMint": token_address,
-                "amount": int(usdc_amount * 10**6),
-                "slippageBps": 100,
-                "onlyDirectRoutes": False,
-            }
-            quote_response = await session.get(quote_url, params=params)
-            quote = quote_response.json()
+        route_map = await jupiter.route_map()
+        usdc_mint = Pubkey.from_string("Es9vMFrzaCERZT2XXGkUa6cdGvySCGAUnxHkcDFVSxkf")  # USDC
+        out_mint = Pubkey.from_string(token_address)
 
-            if not quote.get("data"):
-                return {"success": False, "error": "No quote available."}
+        # Get best route
+        routes = await jupiter.quote(
+            input_mint=usdc_mint,
+            output_mint=out_mint,
+            amount=int(usdc_amount * 10**6),
+            slippage=1.0,
+            swap_mode=SwapMode.ExactIn
+        )
 
-            route = quote["data"][0]
+        if not routes or not routes["data"]:
+            return {"success": False, "error": "No swap route found."}
 
-            # Step 2: Get swap transaction
-            swap_url = f"{JUPITER_API}/v6/swap"
-            swap_payload = {
-                "route": route,
-                "userPublicKey": wallet_address,
-                "wrapUnwrapSOL": True,
-                "useSharedAccounts": True,
-                "feeAccount": None,
-            }
-            swap_response = await session.post(swap_url, json=swap_payload)
-            swap_data = swap_response.json()
+        route = routes["data"][0]
 
-            if "swapTransaction" not in swap_data:
-                return {"success": False, "error": "Swap transaction not returned."}
+        tx_data = await jupiter.swap(
+            route=route,
+            user_public_key=keypair.pubkey()
+        )
 
-            swap_tx_b64 = swap_data["swapTransaction"]
+        tx = tx_data["swapTransaction"]
 
-        # Step 3: Sign and send transaction
-        from base64 import b64decode
-        from solana.transaction import Transaction
-
-        tx_bytes = b64decode(swap_tx_b64)
-        transaction = Transaction.deserialize(tx_bytes)
-        transaction.sign([keypair])
-        tx_sig = await client.send_transaction(transaction, keypair, opts=TxOpts(skip_confirmation=False, preflight_commitment=Confirmed))
+        # Sign and send
+        from solders.transaction import VersionedTransaction
+        signed = VersionedTransaction.from_bytes(base58.b58decode(tx)).sign([keypair])
+        txid = await async_client.send_raw_transaction(signed.serialize(), opts=TxOpts(skip_preflight=True))
 
         return {
             "success": True,
-            "tx_hash": tx_sig.value,
+            "tx_hash": str(txid.value),
             "token": symbol,
             "amount_usdc": usdc_amount
         }
@@ -90,7 +78,7 @@ async def execute_trade(token_address: str, usdc_amount: float, symbol: str, pri
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-
+# ✅ Stop-loss / Take-profit logic
 async def check_stop_loss_take_profit(token_data, buy_price, stop_loss=0.10, take_profit=0.25):
     current_price = token_data["price"]
     drop = (buy_price - current_price) / buy_price
