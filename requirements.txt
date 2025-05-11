@@ -6,4 +6,4 @@ apscheduler
 python-dotenv
 base58
 flask
-git+https://github.com/jup-ag/jupiter-py-sdk.git
+aiohttp
