@@ -1,30 +1,27 @@
 import requests
 
-def get_hot_memecoins(min_volume_usd=90000, min_liquidity_usd=10000):
-    url = "https://quote-api.jup.ag/v6/tokens"
+# Fetch token info and price from Jupiter token list
+async def fetch_token_info(symbol_or_address: str):
     try:
+        # Jupiter token list API
+        url = "https://cache.jup.ag/tokens"
         response = requests.get(url)
-        data = response.json()
-        trending = []
+        response.raise_for_status()
 
-        for token in data['tokens']:
-            symbol = token.get('symbol', '')
-            if "🐶" in symbol or "INU" in symbol.upper() or "DOG" in symbol.upper():  # crude meme filter
-                volume = token.get("volume24hUSD", 0)
-                liquidity = token.get("liquidityUSD", 0)
+        tokens = response.json().get("tokens", [])
 
-                if volume >= min_volume_usd and liquidity >= min_liquidity_usd:
-                    trending.append({
-                        "symbol": symbol,
-                        "name": token.get("name", ""),
-                        "volume24h": round(volume, 2),
-                        "liquidity": round(liquidity, 2),
-                        "price": token.get("price", 0),
-                        "address": token.get("address", "")
-                    })
+        for token in tokens:
+            if token["symbol"].lower() == symbol_or_address.lower() or token["address"] == symbol_or_address:
+                return {
+                    "address": token["address"],
+                    "symbol": token["symbol"],
+                    "name": token["name"],
+                    "decimals": token["decimals"],
+                    "logoURI": token.get("logoURI"),
+                    "price": token.get("price", 0.0)
+                }
 
-        trending.sort(key=lambda x: x['volume24h'], reverse=True)
-        return trending[:10]  # return top 10 hot memecoins
+        raise ValueError(f"Token '{symbol_or_address}' not found in Jupiter token list.")
+
     except Exception as e:
-        print("Error fetching from Jupiter:", e)
-        return []
+        return {"error": str(e)}
