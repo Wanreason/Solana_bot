@@ -10,6 +10,7 @@ from solana.rpc.async_api import AsyncClient
 from solana.rpc.types import TxOpts
 
 from jupiter_sdk import JupiterClient, SwapMode
+from jupiter_utils import fetch_token_info
 
 load_dotenv()
 
@@ -35,7 +36,7 @@ async_client = AsyncClient("https://api.mainnet-beta.solana.com")
 
 jupiter = JupiterClient(async_client)
 
-# 🔁 Execute real trade
+# 🖁️ Execute real trade
 async def execute_trade(token_address: str, usdc_amount: float, symbol: str, price: float):
     try:
         route_map = await jupiter.route_map()
@@ -89,3 +90,21 @@ async def check_stop_loss_take_profit(token_data, buy_price, stop_loss=0.10, tak
     elif gain >= take_profit:
         return "take_profit"
     return None
+
+# 🔍 Fetch token info + price
+async def fetch_token_and_price(symbol_or_address: str):
+    token_data = await fetch_token_info(symbol_or_address)
+    return token_data
+
+# 🔁 Stop-loss/take-profit triggered swap
+async def auto_sell_if_needed(token_address: str, symbol: str, buy_price: float):
+    try:
+        token_data = await fetch_token_info(token_address)
+        signal = await check_stop_loss_take_profit(token_data, buy_price)
+        if signal:
+            result = await execute_trade(token_address, 0.01, symbol, token_data["price"])  # Replace 0.01 with actual balance logic
+            return result if result["success"] else {"success": False, "error": "Sell failed."}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+    return {"success": False, "error": "Conditions not met."}
