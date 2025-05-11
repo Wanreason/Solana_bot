@@ -1,5 +1,5 @@
 import os
-import ast
+import base58
 from dotenv import load_dotenv
 
 from solders.keypair import Keypair
@@ -10,20 +10,18 @@ from solana.rpc.types import TxOpts
 
 load_dotenv()
 
-# Load private key from environment variable
-PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+# Load base58 private key from environment variable
+PRIVATE_KEY_BASE58 = os.getenv("PRIVATE_KEY")
 
 # Validate private key format
-if not PRIVATE_KEY:
+if not PRIVATE_KEY_BASE58:
     raise ValueError("Missing PRIVATE_KEY in environment variables.")
 
 try:
-    private_key_list = ast.literal_eval(PRIVATE_KEY)
-    if not isinstance(private_key_list, list) or len(private_key_list) != 64:
-        raise ValueError("Invalid PRIVATE_KEY format. It must be a list of 64 integers.")
-    keypair = Keypair.from_bytes(bytearray(private_key_list))
+    private_key_bytes = base58.b58decode(PRIVATE_KEY_BASE58)
+    keypair = Keypair.from_bytes(private_key_bytes)
 except Exception as e:
-    raise ValueError(f"Failed to parse PRIVATE_KEY: {e}")
+    raise ValueError(f"Failed to decode PRIVATE_KEY from base58: {e}")
 
 wallet_address = str(keypair.pubkey())
 
