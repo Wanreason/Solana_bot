@@ -1,27 +1,41 @@
-import requests
+import aiohttp
 
-# Fetch token info and price from Jupiter token list
 async def fetch_token_info(symbol_or_address: str):
+    url = f"https://public-api.birdeye.so/public/token/{symbol_or_address}"
+    headers = {"X-API-KEY": "birdeye-public-api-key"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as resp:
+            if resp.status != 200:
+                return None
+            data = await resp.json()
+
     try:
-        # Jupiter token list API
-        url = "https://cache.jup.ag/tokens"
-        response = requests.get(url)
-        response.raise_for_status()
+        return {
+            "symbol": data["data"]["symbol"],
+            "address": data["data"]["address"],
+            "price": float(data["data"]["value"])
+        }
+    except Exception:
+        return None
 
-        tokens = response.json().get("tokens", [])
+async def get_hot_memecoins(limit=5):
+    url = "https://public-api.birdeye.so/public/token/moving"
+    params = {"limit": limit, "direction": "DESC", "interval": "1h"}
+    headers = {"X-API-KEY": "birdeye-public-api-key"}
 
-        for token in tokens:
-            if token["symbol"].lower() == symbol_or_address.lower() or token["address"] == symbol_or_address:
-                return {
-                    "address": token["address"],
-                    "symbol": token["symbol"],
-                    "name": token["name"],
-                    "decimals": token["decimals"],
-                    "logoURI": token.get("logoURI"),
-                    "price": token.get("price", 0.0)
-                }
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params, headers=headers) as resp:
+            if resp.status != 200:
+                return []
 
-        raise ValueError(f"Token '{symbol_or_address}' not found in Jupiter token list.")
+            data = await resp.json()
 
-    except Exception as e:
-        return {"error": str(e)}
+    tokens = []
+    for token in data.get("data", []):
+        tokens.append({
+            "symbol": token.get("symbol"),
+            "address": token.get("address")
+        })
+
+    return tokens
