@@ -1,5 +1,4 @@
 import os
-import ast
 import base58
 from dotenv import load_dotenv
 
@@ -14,7 +13,7 @@ from jupiter_utils import fetch_token_info
 
 load_dotenv()
 
-# Load private key from base58 in environment variable
+# --- Load and validate the private key ---
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")
 
 if not PRIVATE_KEY:
@@ -23,27 +22,25 @@ if not PRIVATE_KEY:
 try:
     secret_bytes = base58.b58decode(PRIVATE_KEY)
     if len(secret_bytes) != 64:
-        raise ValueError("Expected 64 bytes for full secret key.")
+        raise ValueError(f"Expected 64 bytes for full secret key, got {len(secret_bytes)}.")
     keypair = Keypair.from_bytes(secret_bytes)
 except Exception as e:
     raise ValueError(f"Failed to decode PRIVATE_KEY from base58: {e}")
 
 wallet_address = str(keypair.pubkey())
 
-# Solana RPC client
+# --- Clients ---
 client = Client("https://api.mainnet-beta.solana.com")
 async_client = AsyncClient("https://api.mainnet-beta.solana.com")
-
 jupiter = JupiterClient(async_client)
 
-# 🖁️ Execute real trade
+# --- Trade Execution ---
 async def execute_trade(token_address: str, usdc_amount: float, symbol: str, price: float):
     try:
         route_map = await jupiter.route_map()
-        usdc_mint = Pubkey.from_string("Es9vMFrzaCERZT2XXGkUa6cdGvySCGAUnxHkcDFVSxkf")  # USDC
+        usdc_mint = Pubkey.from_string("Es9vMFrzaCERZT2XXGkUa6cdGvySCGAUnxHkcDFVSxkf")
         out_mint = Pubkey.from_string(token_address)
 
-        # Get best route
         routes = await jupiter.quote(
             input_mint=usdc_mint,
             output_mint=out_mint,
@@ -79,7 +76,7 @@ async def execute_trade(token_address: str, usdc_amount: float, symbol: str, pri
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-# ✅ Stop-loss / Take-profit logic
+# --- Stop-loss & Take-profit checks ---
 async def check_stop_loss_take_profit(token_data, buy_price, stop_loss=0.10, take_profit=0.25):
     current_price = token_data["price"]
     drop = (buy_price - current_price) / buy_price
@@ -91,19 +88,20 @@ async def check_stop_loss_take_profit(token_data, buy_price, stop_loss=0.10, tak
         return "take_profit"
     return None
 
-# 🔍 Fetch token info + price
+# --- Fetch and wrap token price ---
 async def fetch_token_and_price(symbol_or_address: str):
-    token_data = await fetch_token_info(symbol_or_address)
-    return token_data
+    return await fetch_token_info(symbol_or_address)
 
-# 🔁 Stop-loss/take-profit triggered swap
+# --- Triggered Sell if SL or TP hits ---
 async def auto_sell_if_needed(token_address: str, symbol: str, buy_price: float):
     try:
         token_data = await fetch_token_info(token_address)
         signal = await check_stop_loss_take_profit(token_data, buy_price)
+
         if signal:
-            result = await execute_trade(token_address, 0.01, symbol, token_data["price"])  # Replace 0.01 with actual balance logic
+            result = await execute_trade(token_address, 0.01, symbol, token_data["price"])  # Replace with actual balance logic
             return result if result["success"] else {"success": False, "error": "Sell failed."}
+
     except Exception as e:
         return {"success": False, "error": str(e)}
 
