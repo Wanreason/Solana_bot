@@ -7,3 +7,4 @@ python-dotenv
 base58
 flask
 aiohttp
+jupiter-sdk
