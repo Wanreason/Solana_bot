@@ -1,59 +1,37 @@
-import os
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes,
-)
-from jupiter_trade import execute_trade, auto_sell_if_needed
-from jupiter_utils import fetch_token_info, get_hot_memecoins
+import asyncio
+from aiohttp import web
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+# Your existing imports
+from fetchers.dexscreener import fetch_dexscreener_data
+from filters import is_token_valid
+from alert import send_alert
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Solana trading bot is online!")
+# --- Web server ping handler ---
+async def handle_ping(request):
+    return web.Response(text="OK")
 
-async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) < 1:
-        await update.message.reply_text("Usage: /buy <symbol_or_address>")
-        return
+# --- Your existing main bot loop ---
+async def process_tokens():
+    while True:
+        print("🔍 Fetching tokens...")
+        tokens = await fetch_dexscreener_data()
+        for token in tokens:
+            if await is_token_valid(token):
+                await send_alert(token)
+        await asyncio.sleep(60)
 
-    symbol_or_address = context.args[0].upper()
-    token_data = await fetch_token_info(symbol_or_address)
+# --- Entry point: run both web server + bot loop concurrently ---
+async def main():
+    app = web.Application()
+    app.add_routes([web.get('/', handle_ping)])
 
-    if not token_data:
-        await update.message.reply_text(f"Token not found: {symbol_or_address}")
-        return
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 8080)
+    await site.start()
 
-    result = await execute_trade(token_data["address"], 10, token_data["symbol"], token_data["price"])  # Buy $10 worth
-    if result["success"]:
-        await update.message.reply_text(
-            f"✅ Bought {result['token']} for ${result['amount_usdc']}\nTX: {result['tx_hash']}"
-        )
-    else:
-        await update.message.reply_text(f"❌ Buy failed: {result['error']}")
-
-async def hot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    tokens = await get_hot_memecoins()
-    if not tokens:
-        await update.message.reply_text("No hot memecoins found.")
-        return
-
-    msg = "🔥 Hot Memecoins:\n"
-    for token in tokens[:10]:
-        msg += f"- {token['symbol']} @ ${token['price']:.6f}\n"
-    await update.message.reply_text(msg)
-
-def main():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("buy", buy))
-    app.add_handler(CommandHandler("hot", hot))
-
-    print("🤖 Bot started.")
-    app.run_polling()
+    # Run bot loop forever
+    await process_tokens()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
