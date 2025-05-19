@@ -9,7 +9,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 # Filter thresholds
 MIN_VOLUME = 5000  # Minimum 24h trading volume in USD
-MIN_LIQUIDITY = 5000  # Minimum liquidity in USD
+MIN_LIQUIDITY = 3000  # Minimum liquidity in USD
 MAX_BUY_TAX = 10  # Max acceptable buy tax (%)
 MAX_SELL_TAX = 10  # Max acceptable sell tax (%)
 REQUIRED_TOKEN_AGE_MINUTES = 10  # Minimum token age in minutes
