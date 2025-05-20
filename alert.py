@@ -5,12 +5,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
 
-if not TELEGRAM_TOKEN or not CHAT_ID:
-    raise ValueError("TELEGRAM_TOKEN or CHAT_ID is not set in environment variables.")
+if not TELEGRAM_TOKEN:
+    raise ValueError("TELEGRAM_TOKEN is not set in environment variables.")
 
-async def send_alert(token: dict):
+async def send_alert(token: dict, chat_id: int):
     try:
         name = token.get("name", "Unknown")
         symbol = token.get("symbol", "N/A")
@@ -33,7 +32,7 @@ async def send_alert(token: dict):
 
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {
-            "chat_id": CHAT_ID,
+            "chat_id": chat_id,
             "text": message,
             "parse_mode": "Markdown",
             "disable_web_page_preview": False
@@ -45,7 +44,7 @@ async def send_alert(token: dict):
                     error_text = await resp.text()
                     print(f"❌ Failed to send alert: {resp.status} - {error_text}")
                 else:
-                    print(f"✅ Alert sent: {name} (${symbol})")
+                    print(f"✅ Alert sent to {chat_id}: {name} (${symbol})")
 
     except Exception as e:
         print(f"❌ Error sending alert: {e}")
