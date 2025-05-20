@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import nest_asyncio
 from aiohttp import web
 from dotenv import load_dotenv
 
@@ -85,4 +86,12 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Patch the event loop if one is already running
+    try:
+        nest_asyncio.apply()
+    except Exception as e:
+        logging.warning(f"nest_asyncio apply failed: {e}")
+
+    # Run bot
+    asyncio.get_event_loop().create_task(main())
+    asyncio.get_event_loop().run_forever()
