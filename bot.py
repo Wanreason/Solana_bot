@@ -46,9 +46,6 @@ async def run_telegram_bot():
     app.add_handler(CommandHandler("status", status))
 
     logging.info("🤖 Telegram bot starting...")
-    await app.initialize()
-    await app.start()
-    await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_polling()
 
 # --- Token Scanner Loop ---
@@ -83,4 +80,8 @@ async def main():
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(main())
+    finally:
+        loop.close()
