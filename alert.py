@@ -1,12 +1,16 @@
-from telegram import Bot
 import os
+import aiohttp
+from dotenv import load_dotenv
+
+load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-bot = Bot(token=TELEGRAM_TOKEN)
+if not TELEGRAM_TOKEN or not CHAT_ID:
+    raise ValueError("TELEGRAM_TOKEN or CHAT_ID is not set in environment variables.")
 
-def send_alert(token: dict):
+async def send_alert(token: dict):
     try:
         name = token.get("name", "Unknown")
         symbol = token.get("symbol", "N/A")
@@ -27,13 +31,21 @@ def send_alert(token: dict):
             f"#Solana #TokenAlert"
         )
 
-        bot.send_message(
-            chat_id=CHAT_ID,
-            text=message,
-            parse_mode="Markdown",
-            disable_web_page_preview=False
-        )
-        print(f"✅ Alert sent: {name} (${symbol})")
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": False
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    print(f"❌ Failed to send alert: {resp.status} - {error_text}")
+                else:
+                    print(f"✅ Alert sent: {name} (${symbol})")
 
     except Exception as e:
         print(f"❌ Error sending alert: {e}")
