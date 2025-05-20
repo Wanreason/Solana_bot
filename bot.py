@@ -17,6 +17,8 @@ from alert import send_alert
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
+nest_asyncio.apply()  # <-- Patch asyncio to allow nested loops
+
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")  # Optional fallback
 
@@ -86,12 +88,12 @@ async def main():
     )
 
 if __name__ == "__main__":
-    # Patch the event loop if one is already running
     try:
-        nest_asyncio.apply()
-    except Exception as e:
-        logging.warning(f"nest_asyncio apply failed: {e}")
-
-    # Run bot
-    asyncio.get_event_loop().create_task(main())
-    asyncio.get_event_loop().run_forever()
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "already running" in str(e):
+            loop = asyncio.get_event_loop()
+            loop.create_task(main())
+            loop.run_forever()
+        else:
+            raise
