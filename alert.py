@@ -1,22 +1,22 @@
 import os
-import aiohttp
-from dotenv import load_dotenv
-
-load_dotenv()
+import logging
+from telegram import Bot
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 if not TELEGRAM_TOKEN:
     raise ValueError("TELEGRAM_TOKEN is not set in environment variables.")
 
+bot = Bot(token=TELEGRAM_TOKEN)
+
 async def send_alert(token: dict, chat_id: int):
     try:
         name = token.get("name", "Unknown")
         symbol = token.get("symbol", "N/A")
-        price = token.get("priceUsd", 0)
-        liquidity = token.get("liquidity", 0)
-        volume = token.get("volume24h", 0)
-        price_change = token.get("priceChange24h", 0)
+        price = float(token.get("priceUsd", 0))
+        liquidity = float(token.get("liquidity", 0))
+        volume = float(token.get("volume24h", 0))
+        price_change = float(token.get("priceChange24h", 0))
         url = token.get("url", "")
 
         message = (
@@ -30,21 +30,13 @@ async def send_alert(token: dict, chat_id: int):
             f"#Solana #TokenAlert"
         )
 
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": message,
-            "parse_mode": "Markdown",
-            "disable_web_page_preview": False
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload) as resp:
-                if resp.status != 200:
-                    error_text = await resp.text()
-                    print(f"❌ Failed to send alert: {resp.status} - {error_text}")
-                else:
-                    print(f"✅ Alert sent to {chat_id}: {name} (${symbol})")
+        await bot.send_message(
+            chat_id=chat_id,
+            text=message,
+            parse_mode="Markdown",
+            disable_web_page_preview=False
+        )
+        logging.info(f"✅ Alert sent: {name} (${symbol})")
 
     except Exception as e:
-        print(f"❌ Error sending alert: {e}")
+        logging.error(f"❌ Error sending alert: {e}")
