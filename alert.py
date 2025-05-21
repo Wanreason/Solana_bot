@@ -19,6 +19,11 @@ async def send_alert(token: dict, chat_id: int):
         price_change = float(token.get("priceChange24h", 0))
         url = token.get("url", "")
 
+        # Validate URL: must start with http or https
+        if not url.startswith("http"):
+            logging.warning(f"⚠️ Invalid or missing DexScreener URL for token {name}: {url}")
+            url = ""
+
         message = (
             f"✅ *New Token Alert!*\n\n"
             f"🚀 *Token:* {name} (${symbol})\n"
@@ -26,9 +31,14 @@ async def send_alert(token: dict, chat_id: int):
             f"💰 *Liquidity:* `${liquidity:,.0f}`\n"
             f"📊 *Volume (24h):* `${volume:,.0f}`\n"
             f"📈 *Change (24h):* `{price_change:.2f}%`\n"
-            f"🔗 [View on DexScreener]({url})\n\n"
-            f"#Solana #TokenAlert"
         )
+        
+        if url:
+            message += f"🔗 [View on DexScreener]({url})\n\n"
+        else:
+            message += "\n"
+
+        message += "#Solana #TokenAlert"
 
         await bot.send_message(
             chat_id=chat_id,
