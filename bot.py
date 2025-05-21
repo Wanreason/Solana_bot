@@ -83,7 +83,7 @@ async def process_tokens():
                     await send_alert(token, chat_id)
         except Exception as e:
             logging.error(f"❌ Error in token loop: {e}")
-        await asyncio.sleep(60)
+        await asyncio.sleep(120)
 
 # --- Main Entry Point ---
 async def main():
