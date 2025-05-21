@@ -1,29 +1,30 @@
 import logging
-from fetchers.raydium import fetch_raydium_pairs
 from fetchers.birdeye import fetch_token_info_birdeye
 
 async def is_token_valid(token):
-    address = token.get("address")
+    address = token.get("address") or token.get("pairAddress")
     if not address:
+        logging.warning("⚠️ Token missing address.")
         return False
 
-    birdeye_info = await fetch_token_info_birdeye(address)
-    raydium_info = await fetch_raydium_info(address)
-
-    if not birdeye_info or not raydium_info:
+    info = await fetch_token_info_birdeye(address)
+    if not info or "data" not in info:
         return False
+
+    data = info["data"]
 
     try:
-        liquidity = float(birdeye_info["data"]["liquidity"]["usd"])
-        volume = float(birdeye_info["data"]["volume"]["h24"])
-        age = int(raydium_info["createdEpochTime"])
+        price = float(data.get("price_usd", 0))
+        market_cap = float(data.get("mc", 0))
+        volume = float(data.get("volume_24h", 0))
+        liquidity = float(data.get("liquidity", 0))
 
-        if liquidity > 9000 and volume > 2000:
-            logging.info(f"✅ Token {address} passed filters (liq: {liquidity}, vol: {volume})")
-            return True
-        else:
-            logging.info(f"⛔ Token {address} failed filters (liq: {liquidity}, vol: {volume})")
+        if price <= 0 or market_cap <= 0 or volume < 5000 or liquidity < 2000:
+            return False
+
+        logging.info(f"✅ Token passed: {data.get('symbol')} | Price: ${price:.4f}")
+        return True
+
     except Exception as e:
-        logging.warning(f"⚠️ Filter error for token {address}: {e}")
-
-    return False
+        logging.error(f"❌ Error parsing token data: {e}")
+        return False
