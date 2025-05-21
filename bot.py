@@ -1,7 +1,6 @@
 import os
 import asyncio
 import logging
-import nest_asyncio
 from aiohttp import web
 from dotenv import load_dotenv
 
@@ -14,10 +13,9 @@ from fetchers.dexscreener import fetch_dexscreener_data
 from filters import is_token_valid
 from alert import send_alert
 
+# Load .env variables
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
-
-nest_asyncio.apply()  # <-- Patch asyncio to allow nested loops
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")  # Optional fallback
@@ -25,7 +23,7 @@ CHAT_ID = os.getenv("CHAT_ID")  # Optional fallback
 if not TELEGRAM_TOKEN:
     raise ValueError("TELEGRAM_TOKEN is not set in environment variables.")
 
-# --- Web server (Railway Ping) ---
+# --- Web server (for Railway ping) ---
 async def handle_ping(request):
     return web.Response(text="OK")
 
@@ -41,7 +39,7 @@ async def hot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Bot is running and monitoring tokens...")
 
-# --- Run Telegram Bot ---
+# --- Telegram Bot Loop ---
 async def run_telegram_bot():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -52,7 +50,8 @@ async def run_telegram_bot():
     await app.initialize()
     await app.start()
     await app.bot.delete_webhook(drop_pending_updates=True)
-    # Let the bot run indefinitely
+
+    # Keep the bot alive
     while True:
         await asyncio.sleep(3600)
 
@@ -64,15 +63,15 @@ async def process_tokens():
             tokens = await fetch_dexscreener_data()
             for token in tokens:
                 if await is_token_valid(token):
-                    chat_id = int(CHAT_ID) if CHAT_ID else 123456789  # Replace with fallback or DB user list
+                    chat_id = int(CHAT_ID) if CHAT_ID else 123456789  # Replace fallback with actual user list if needed
                     await send_alert(token, chat_id)
         except Exception as e:
             logging.error(f"❌ Error in token loop: {e}")
         await asyncio.sleep(60)
 
-# --- Entry Point ---
+# --- Main Entry Point ---
 async def main():
-    # Web server
+    # Web server for Railway keep-alive
     app = web.Application()
     app.add_routes([web.get('/', handle_ping)])
     runner = web.AppRunner(app)
@@ -81,19 +80,13 @@ async def main():
     await site.start()
     logging.info("🌐 Web server running on port 8080")
 
-    # Run all services concurrently
+    # Start both bot and token scanner
     await asyncio.gather(
         run_telegram_bot(),
-        process_tokens(),
+        process_tokens()
     )
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except RuntimeError as e:
-        if "already running" in str(e):
-            loop = asyncio.get_event_loop()
-            loop.create_task(main())
-            loop.run_forever()
-        else:
-            raise
+    loop = asyncio.get_event_loop()
+    loop.create_task(main())
+    loop.run_forever()
