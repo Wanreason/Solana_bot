@@ -1,39 +1,29 @@
 import logging
-from config import (
-    MIN_VOLUME,
-    MIN_LIQUIDITY,
-    BLACKLISTED_WORDS,
-)
-from scanner.token_safety import basic_safety_check
+from fetchers.raydium import fetch_raydium_info
+from fetchers.birdeye import fetch_token_info_birdeye
 
-def is_token_valid(token: dict) -> bool:
-    if not token:
+async def is_token_valid(token):
+    address = token.get("address")
+    if not address:
         return False
 
-    volume = token.get('volume24h', 0)
-    if volume < MIN_VOLUME:
-        logging.info(f"❌ Rejected: Volume too low (${volume})")
+    birdeye_info = await fetch_token_info_birdeye(address)
+    raydium_info = await fetch_raydium_info(address)
+
+    if not birdeye_info or not raydium_info:
         return False
 
-    liquidity = token.get('liquidity', 0)
-    if liquidity < MIN_LIQUIDITY:
-        logging.info(f"❌ Rejected: Liquidity too low (${liquidity})")
-        return False
+    try:
+        liquidity = float(birdeye_info["data"]["liquidity"]["usd"])
+        volume = float(birdeye_info["data"]["volume"]["h24"])
+        age = int(raydium_info["createdEpochTime"])
 
-    price_change = token.get('priceChange24h', 0)
-    if price_change < 0:
-        logging.info(f"❌ Rejected: Negative price trend ({price_change}%)")
-        return False
+        if liquidity > 20000 and volume > 10000:
+            logging.info(f"✅ Token {address} passed filters (liq: {liquidity}, vol: {volume})")
+            return True
+        else:
+            logging.info(f"⛔ Token {address} failed filters (liq: {liquidity}, vol: {volume})")
+    except Exception as e:
+        logging.warning(f"⚠️ Filter error for token {address}: {e}")
 
-    name = token.get('name', '').lower()
-    symbol = token.get('symbol', '').lower()
-    for word in BLACKLISTED_WORDS:
-        if word in name or word in symbol:
-            logging.info(f"❌ Rejected: Name contains blacklisted word '{word}'")
-            return False
-
-    if not basic_safety_check(token):
-        logging.info("❌ Rejected: Failed basic safety check")
-        return False
-
-    return True
+    return False
