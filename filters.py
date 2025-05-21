@@ -18,7 +18,7 @@ async def is_token_valid(token):
         volume = float(birdeye_info["data"]["volume"]["h24"])
         age = int(raydium_info["createdEpochTime"])
 
-        if liquidity > 20000 and volume > 10000:
+        if liquidity > 9000 and volume > 2000:
             logging.info(f"✅ Token {address} passed filters (liq: {liquidity}, vol: {volume})")
             return True
         else:
