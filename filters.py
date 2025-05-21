@@ -1,5 +1,5 @@
 import logging
-from fetchers.raydium import fetch_raydium_info
+from fetchers.raydium import fetch_raydium_pairs
 from fetchers.birdeye import fetch_token_info_birdeye
 
 async def is_token_valid(token):
