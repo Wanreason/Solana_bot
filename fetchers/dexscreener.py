@@ -2,8 +2,7 @@ import aiohttp
 import logging
 
 async def fetch_dexscreener_data():
-    # Updated API endpoint for Solana token pairs
-    url = "https://api.dexscreener.com/latest/dex/search/?network=solana"
+    url = "https://api.dexscreener.com/latest/dex/pairs/solana"
     timeout = aiohttp.ClientTimeout(total=10)
 
     try:
