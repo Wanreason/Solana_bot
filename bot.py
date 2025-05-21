@@ -9,7 +9,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # Internal modules
-from fetchers.dexscreener import fetch_dexscreener_data
+from fetchers.scanner import fetch_tokens  # 👈 Replaced DexScreener
 from filters import is_token_valid
 from alert import send_alert
 
@@ -23,7 +23,7 @@ CHAT_ID = os.getenv("CHAT_ID")  # Optional fallback
 if not TELEGRAM_TOKEN:
     raise ValueError("TELEGRAM_TOKEN is not set in environment variables.")
 
-# --- Web server (for Railway ping) ---
+# --- Web server (for Railway keep-alive) ---
 async def handle_ping(request):
     return web.Response(text="OK")
 
@@ -60,10 +60,10 @@ async def process_tokens():
     while True:
         logging.info("🔍 Fetching tokens...")
         try:
-            tokens = await fetch_dexscreener_data()
+            tokens = await fetch_tokens()  # 👈 Now from Birdeye scanner
             for token in tokens:
                 if await is_token_valid(token):
-                    chat_id = int(CHAT_ID) if CHAT_ID else 123456789  # Replace fallback with actual user list if needed
+                    chat_id = int(CHAT_ID) if CHAT_ID else 123456789
                     await send_alert(token, chat_id)
         except Exception as e:
             logging.error(f"❌ Error in token loop: {e}")
