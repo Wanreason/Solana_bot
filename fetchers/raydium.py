@@ -1,4 +1,5 @@
 import aiohttp
+import asyncio
 import logging
 
 RAYDIUM_API_URL = "https://api.raydium.io/pairs"
