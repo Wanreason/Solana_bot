@@ -2,8 +2,10 @@ import aiohttp
 import logging
 
 async def fetch_dexscreener_data():
-    url = "https://api.dexscreener.com/latest/dex/pairs/solana"
+    # Updated API endpoint for Solana token pairs
+    url = "https://api.dexscreener.com/latest/dex/search/?network=solana"
     timeout = aiohttp.ClientTimeout(total=10)
+
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url) as resp:
@@ -11,7 +13,8 @@ async def fetch_dexscreener_data():
                     data = await resp.json()
                     return data.get("pairs", [])
                 else:
-                    logging.warning(f"❌ DexScreener returned status {resp.status}")
+                    logging.warning(f"❌ DexScreener returned status {resp.status} for URL: {url}")
     except Exception as e:
         logging.error(f"❌ DexScreener fetch failed: {e}")
+
     return []
