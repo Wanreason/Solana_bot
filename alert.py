@@ -1,5 +1,5 @@
 import logging
-from telegram import ParseMode
+from telegram.constants import ParseMode
 from telegram.ext import Application
 
 async def send_alert(token, chat_id: int, app: Application):
