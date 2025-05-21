@@ -9,7 +9,6 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # Internal modules
-from fetchers.scanner import fetch_tokens  # 👈 Replaced DexScreener
 from filters import is_token_valid
 from alert import send_alert
 
@@ -23,7 +22,10 @@ CHAT_ID = os.getenv("CHAT_ID")  # Optional fallback
 if not TELEGRAM_TOKEN:
     raise ValueError("TELEGRAM_TOKEN is not set in environment variables.")
 
-# --- Web server (for Railway keep-alive) ---
+# Global Application instance for bot
+app = None
+
+# --- Web server (for Railway ping) ---
 async def handle_ping(request):
     return web.Response(text="OK")
 
@@ -39,8 +41,15 @@ async def hot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Bot is running and monitoring tokens...")
 
+# --- Placeholder function for fetching tokens ---
+# Replace this with your combined Birdeye, Raydium, Jupiter fetch logic
+async def fetch_tokens_from_sources():
+    # Example: return list of token dicts from your fetchers
+    return []
+
 # --- Telegram Bot Loop ---
 async def run_telegram_bot():
+    global app
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("hot", hot))
@@ -60,11 +69,12 @@ async def process_tokens():
     while True:
         logging.info("🔍 Fetching tokens...")
         try:
-            tokens = await fetch_tokens()  # 👈 Now from Birdeye scanner
+            tokens = await fetch_tokens_from_sources()
+
             for token in tokens:
                 if await is_token_valid(token):
-                    chat_id = int(CHAT_ID) if CHAT_ID else 123456789
-                    await send_alert(token, chat_id)
+                    chat_id = int(CHAT_ID) if CHAT_ID else 123456789  # Replace fallback with actual chat ID
+                    await send_alert(token, chat_id, app)
         except Exception as e:
             logging.error(f"❌ Error in token loop: {e}")
         await asyncio.sleep(60)
@@ -72,15 +82,15 @@ async def process_tokens():
 # --- Main Entry Point ---
 async def main():
     # Web server for Railway keep-alive
-    app = web.Application()
-    app.add_routes([web.get('/', handle_ping)])
-    runner = web.AppRunner(app)
+    server_app = web.Application()
+    server_app.add_routes([web.get('/', handle_ping)])
+    runner = web.AppRunner(server_app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', 8080)
     await site.start()
     logging.info("🌐 Web server running on port 8080")
 
-    # Start both bot and token scanner
+    # Run Telegram bot and token processor concurrently
     await asyncio.gather(
         run_telegram_bot(),
         process_tokens()
