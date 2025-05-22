@@ -8,9 +8,18 @@ async def fetch_jupiter_tokens():
             response = await client.get(url)
 
         if response.status_code == 200:
-            data = response.json()
-            # ✅ Jupiter returns a list directly, not inside "tokens"
-            return data  # returning the list of token dicts
+            try:
+                data = response.json()
+                tokens = data.get("tokens", [])
+                if isinstance(tokens, list):
+                    logging.info(f"✅ Fetched {len(tokens)} tokens from Jupiter")
+                    return tokens
+                else:
+                    logging.error("❌ Jupiter API returned unexpected format for 'tokens'")
+                    return []
+            except Exception as json_error:
+                logging.error(f"❌ Failed to parse JSON from Jupiter API: {json_error}")
+                return []
         else:
             logging.warning(f"⚠️ Jupiter API returned status {response.status_code}")
             return []
