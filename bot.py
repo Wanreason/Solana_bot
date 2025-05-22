@@ -9,8 +9,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from filters import is_token_valid
 from alert import send_alert
-from fetchers.birdeye import fetch_token_info_birdeye
-from fetchers.jup import fetch_jupiter_tokens
+from fetchers.birdeye import fetch_token_info_birdeye  # Keep Birdeye
+from fetchers.jup import fetch_jupiter_tokens  # Use Jupiter to list tokens
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -27,15 +27,29 @@ async def handle_ping(request):
 
 # --- Telegram Bot Commands ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logging.info("✅ Received /start command")
     await update.message.reply_text("👋 Bot is live and tracking Solana tokens!")
 
 async def hot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("🔥 Received /hot command")
-    await update.message.reply_text("🔥 Hot tokens feature coming soon!")
+    try:
+        tokens = await fetch_jupiter_tokens()
+        # Select top 5 tokens with highest 24h volume if available
+        hot_tokens = sorted(tokens, key=lambda x: x.get("info", {}).get("volume", 0), reverse=True)[:5]
+
+        response = "🔥 Hot Tokens (Top 5 by Volume):\n"
+        for token in hot_tokens:
+            info = token.get("info", {})
+            name = info.get("name", "Unknown")
+            symbol = info.get("symbol", "???")
+            volume = info.get("volume", 0)
+            response += f"• {name} ({symbol}) - 24h Volume: ${volume:,}\n"
+
+        await update.message.reply_text(response)
+    except Exception as e:
+        logging.error(f"❌ Error in /hot command: {e}")
+        await update.message.reply_text("⚠️ Failed to fetch hot tokens.")
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logging.info("📈 Received /status command")
     await update.message.reply_text("✅ Bot is running...")
 
 # --- Run Telegram Bot ---
@@ -46,11 +60,9 @@ async def run_telegram_bot():
     app.add_handler(CommandHandler("status", status))
 
     logging.info("🤖 Telegram bot starting...")
-
     await app.initialize()
-    await app.bot.delete_webhook(drop_pending_updates=True)  # Disable webhook
     await app.start()
-    await app.updater.start_polling()  # ✅ Ensure bot receives messages
+    await app.bot.delete_webhook(drop_pending_updates=True)
 
     while True:
         await asyncio.sleep(3600)
