@@ -9,19 +9,8 @@ async def fetch_jupiter_tokens():
 
         if response.status_code == 200:
             data = response.json()
-
-            # ✅ Jupiter returns a list of token dicts
-            if isinstance(data, list):
-                return data
-
-            # ✅ In case it's a dict with 'tokens' key (just in case)
-            elif isinstance(data, dict):
-                return data.get("tokens", [])
-
-            else:
-                logging.error("❌ Unexpected data format from Jupiter.")
-                return []
-
+            # ✅ Jupiter returns a list directly, not inside "tokens"
+            return data  # returning the list of token dicts
         else:
             logging.warning(f"⚠️ Jupiter API returned status {response.status_code}")
             return []
