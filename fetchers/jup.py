@@ -14,7 +14,7 @@ async def fetch_jupiter_tokens():
                     logging.info(f"✅ Fetched {len(data)} tokens from Jupiter")
                     return data
                 else:
-                    logging.error("❌ Response data is not a list of tokens")
+                    logging.error("❌ Response is not a list of tokens")
                     return []
             except Exception as json_error:
                 logging.error(f"❌ Failed to parse JSON: {json_error}")
