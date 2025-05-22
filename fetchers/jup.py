@@ -9,7 +9,7 @@ async def fetch_jupiter_tokens():
 
         if response.status_code == 200:
             data = response.json()
-            return data.get("tokens", [])
+            return data  # Fix: this is a list, not a dict
         else:
             logging.warning(f"⚠️ Jupiter API returned status {response.status_code}")
             return []
