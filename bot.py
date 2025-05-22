@@ -57,9 +57,11 @@ async def process_tokens():
         try:
             tokens = await fetch_jupiter_tokens()
             for token in tokens:
-                if await is_token_valid(token):
+                if isinstance(token, dict) and await is_token_valid(token):
                     chat_id = int(CHAT_ID) if CHAT_ID else 123456789
                     await send_alert(token, chat_id)
+                else:
+                    logging.warning("⚠️ Skipping invalid token entry (not a dict)")
         except Exception as e:
             logging.error(f"❌ Error in token processing: {e}")
         await asyncio.sleep(60)
