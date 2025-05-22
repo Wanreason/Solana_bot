@@ -9,8 +9,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from filters import is_token_valid
 from alert import send_alert
-from fetchers.birdeye import fetch_token_info_birdeye  # Keep Birdeye
-from fetchers.jup import fetch_jupiter_tokens  # Use Jupiter to list tokens
+from fetchers.birdeye import fetch_token_info_birdeye
+from fetchers.jup import fetch_jupiter_tokens
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -27,12 +27,15 @@ async def handle_ping(request):
 
 # --- Telegram Bot Commands ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info("✅ Received /start command")
     await update.message.reply_text("👋 Bot is live and tracking Solana tokens!")
 
 async def hot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info("🔥 Received /hot command")
     await update.message.reply_text("🔥 Hot tokens feature coming soon!")
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info("📈 Received /status command")
     await update.message.reply_text("✅ Bot is running...")
 
 # --- Run Telegram Bot ---
@@ -43,9 +46,11 @@ async def run_telegram_bot():
     app.add_handler(CommandHandler("status", status))
 
     logging.info("🤖 Telegram bot starting...")
+
     await app.initialize()
+    await app.bot.delete_webhook(drop_pending_updates=True)  # Disable webhook
     await app.start()
-    await app.bot.delete_webhook(drop_pending_updates=True)
+    await app.updater.start_polling()  # ✅ Ensure bot receives messages
 
     while True:
         await asyncio.sleep(3600)
@@ -57,11 +62,9 @@ async def process_tokens():
         try:
             tokens = await fetch_jupiter_tokens()
             for token in tokens:
-                if isinstance(token, dict) and await is_token_valid(token):
+                if await is_token_valid(token):
                     chat_id = int(CHAT_ID) if CHAT_ID else 123456789
                     await send_alert(token, chat_id)
-                else:
-                    logging.warning("⚠️ Skipping invalid token entry (not a dict)")
         except Exception as e:
             logging.error(f"❌ Error in token processing: {e}")
         await asyncio.sleep(60)
