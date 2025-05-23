@@ -9,9 +9,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from filters import is_token_valid
 from alert import send_alert
-from fetchers.jup import fetch_jupiter_tokens  # Fetch token list from Jupiter
+from fetchers.birdeye import fetch_token_info_birdeye
+from fetchers.jup import fetch_jupiter_tokens
 
-# Load environment variables
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
@@ -21,7 +21,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 if not TELEGRAM_TOKEN:
     raise ValueError("TELEGRAM_TOKEN is not set in environment variables.")
 
-# --- Web server (for Railway or Fly.io) ---
+# --- Web server for ping ---
 async def handle_ping(request):
     return web.Response(text="OK")
 
@@ -29,37 +29,39 @@ async def handle_ping(request):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Bot is live and tracking Solana tokens!")
 
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ Bot is running...")
-
 async def hot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("🔥 Received /hot command")
-    await update.message.reply_text("🔥 Scanning top hot tokens, please wait...")
-
     try:
         tokens = await fetch_jupiter_tokens()
-        hot_tokens = []
 
-        # Check only first 30 tokens for performance
-        for token in tokens[:30]:
-            if await is_token_valid(token):
-                symbol = token.get("symbol", "???")
-                address = token.get("address", "N/A")
-                hot_tokens.append(f"• {symbol} — {address}")
+        # Filter to ensure only dicts
+        tokens = [t for t in tokens if isinstance(t, dict)]
 
-            if len(hot_tokens) >= 5:
-                break
+        hot_tokens = sorted(
+            tokens,
+            key=lambda x: x.get("info", {}).get("volume", 0),
+            reverse=True
+        )[:5]
 
-        if hot_tokens:
-            response = "🔥 Top Hot Tokens:\n\n" + "\n".join(hot_tokens)
-        else:
-            response = "⚠️ No hot tokens found."
+        if not hot_tokens:
+            await update.message.reply_text("⚠️ No hot tokens found.")
+            return
+
+        response = "🔥 Hot Tokens (Top 5 by Volume):\n"
+        for token in hot_tokens:
+            info = token.get("info", {})
+            name = info.get("name", "Unknown")
+            symbol = info.get("symbol", "???")
+            volume = info.get("volume", 0)
+            response += f"• {name} ({symbol}) - 24h Volume: ${volume:,.0f}\n"
 
         await update.message.reply_text(response)
-
     except Exception as e:
         logging.error(f"❌ Error in /hot command: {e}")
-        await update.message.reply_text("❌ Failed to fetch hot tokens.")
+        await update.message.reply_text("⚠️ Failed to fetch hot tokens.")
+
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("✅ Bot is running...")
 
 # --- Telegram Bot Runtime ---
 async def run_telegram_bot():
@@ -76,18 +78,25 @@ async def run_telegram_bot():
     while True:
         await asyncio.sleep(3600)
 
-# --- Token Monitoring Loop ---
+# --- Token Monitoring ---
 async def process_tokens():
     while True:
         logging.info("🔍 Fetching tokens...")
         try:
             tokens = await fetch_jupiter_tokens()
+
             for token in tokens:
+                if not isinstance(token, dict):
+                    logging.warning("⚠️ Skipping invalid token (not a dict)")
+                    continue
+
                 if await is_token_valid(token):
                     chat_id = int(CHAT_ID) if CHAT_ID else 123456789
                     await send_alert(token, chat_id)
+
         except Exception as e:
             logging.error(f"❌ Error in token processing: {e}")
+
         await asyncio.sleep(60)
 
 # --- Main Entrypoint ---
