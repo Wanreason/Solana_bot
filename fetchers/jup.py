@@ -11,20 +11,14 @@ async def fetch_jupiter_tokens():
             try:
                 data = response.json()
 
-                # If data is a dictionary, extract its values
                 if isinstance(data, dict):
-                    tokens = list(data.values())
-                elif isinstance(data, list):
-                    tokens = data
+                    tokens = list(data.values())  # Convert dict to list of tokens
+                    valid_tokens = [t for t in tokens if isinstance(t, dict)]
+                    logging.info(f"✅ Fetched {len(valid_tokens)} tokens from Jupiter")
+                    return valid_tokens
                 else:
-                    logging.error("❌ Unexpected token format (not list or dict)")
+                    logging.error("❌ Unexpected data format (not a dict)")
                     return []
-
-                # Filter only valid dict tokens
-                valid_tokens = [t for t in tokens if isinstance(t, dict)]
-                logging.info(f"✅ Fetched {len(valid_tokens)} valid tokens from Jupiter")
-                return valid_tokens
-
             except Exception as json_error:
                 logging.error(f"❌ Failed to parse JSON: {json_error}")
                 return []
