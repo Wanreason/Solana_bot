@@ -21,7 +21,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 if not TELEGRAM_TOKEN:
     raise ValueError("TELEGRAM_TOKEN is not set in environment variables.")
 
-# --- Web server for ping ---
+# --- Web server (for Cyclic.sh / Railway / Fly.io) ---
 async def handle_ping(request):
     return web.Response(text="OK")
 
@@ -29,46 +29,39 @@ async def handle_ping(request):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Bot is live and tracking Solana tokens!")
 
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("✅ Bot is running...")
+
 async def hot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("🔥 Received /hot command")
     try:
         tokens = await fetch_jupiter_tokens()
-
-        # Filter to ensure only dicts
-        tokens = [t for t in tokens if isinstance(t, dict)]
-
-        hot_tokens = sorted(
-            tokens,
-            key=lambda x: x.get("info", {}).get("volume", 0),
-            reverse=True
-        )[:5]
+        hot_tokens = sorted(tokens, key=lambda x: x.get("volume", 0), reverse=True)[:5]
 
         if not hot_tokens:
             await update.message.reply_text("⚠️ No hot tokens found.")
             return
 
-        response = "🔥 Hot Tokens (Top 5 by Volume):\n"
+        response = "🔥 Hot Tokens (Top 5 by 24h Volume):\n"
         for token in hot_tokens:
-            info = token.get("info", {})
-            name = info.get("name", "Unknown")
-            symbol = info.get("symbol", "???")
-            volume = info.get("volume", 0)
-            response += f"• {name} ({symbol}) - 24h Volume: ${volume:,.0f}\n"
+            name = token.get("name", "Unknown")
+            symbol = token.get("symbol", "???")
+            volume = token.get("volume", 0)
+            response += f"• {name} ({symbol}) — 24h Volume: ${volume:,.0f}\n"
 
         await update.message.reply_text(response)
+
     except Exception as e:
         logging.error(f"❌ Error in /hot command: {e}")
         await update.message.reply_text("⚠️ Failed to fetch hot tokens.")
 
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ Bot is running...")
-
-# --- Telegram Bot Runtime ---
+# --- Telegram Bot Loop ---
 async def run_telegram_bot():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("hot", hot))
     app.add_handler(CommandHandler("status", status))
+    app.add_handler(CommandHandler("hot", hot))
 
     logging.info("🤖 Telegram bot starting...")
     await app.initialize()
@@ -78,7 +71,7 @@ async def run_telegram_bot():
     while True:
         await asyncio.sleep(3600)
 
-# --- Token Monitoring ---
+# --- Real-Time Token Monitor ---
 async def process_tokens():
     while True:
         logging.info("🔍 Fetching tokens...")
@@ -99,7 +92,7 @@ async def process_tokens():
 
         await asyncio.sleep(60)
 
-# --- Main Entrypoint ---
+# --- Main Entry Point ---
 async def main():
     app = web.Application()
     app.add_routes([web.get('/', handle_ping)])
