@@ -1,3 +1,4 @@
+# fetchers/jup.py
 import httpx
 import logging
 
@@ -10,12 +11,13 @@ async def fetch_jupiter_tokens():
         if response.status_code == 200:
             try:
                 data = response.json()
-                if isinstance(data, dict):
-                    tokens = list(data.values())  # Extract token list from dict
-                    logging.info(f"✅ Fetched {len(tokens)} tokens from Jupiter")
-                    return tokens
+
+                if isinstance(data, dict):  # <-- Jupiter returns a dict of tokens
+                    token_list = list(data.values())  # Convert to list of tokens
+                    logging.info(f"✅ Fetched {len(token_list)} tokens from Jupiter")
+                    return token_list
                 else:
-                    logging.error("❌ Jupiter response is not a dict")
+                    logging.error("❌ Unexpected data format (not a dict)")
                     return []
             except Exception as json_error:
                 logging.error(f"❌ Failed to parse JSON: {json_error}")
